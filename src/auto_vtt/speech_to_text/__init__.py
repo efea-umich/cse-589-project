@@ -1,6 +1,8 @@
 import enum
+import os
 import whisper
 import numpy as np
+
 
 class SpeechToTextConverter:
     class ModelSize(enum.Enum):
@@ -13,7 +15,7 @@ class SpeechToTextConverter:
     def __init__(self, model_size: ModelSize):
         self.model = whisper.load_model(model_size.value)
 
-    def transcribe(self, audio_path: str) -> str:
+    def transcribe(self, audio_path: os.PathLike) -> str:
         """
         Transcribes speech from the provided audio file path.
 
@@ -23,7 +25,7 @@ class SpeechToTextConverter:
         Returns:
             str: Transcribed text.
         """
-        result = self.model.transcribe(audio_path)
+        result = self.model.transcribe(str(audio_path))
         return result['text'].strip()
 
     def transcribe_array(self, audio_array: np.ndarray, sample_rate: int) -> str:
