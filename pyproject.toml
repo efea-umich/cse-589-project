@@ -9,6 +9,5 @@ dependencies = [
     "openai-whisper>=20240930",
     "pydub>=0.25.1",
     "python-dotenv>=1.0.1",
-    "torch>=2.5.1",
     "transformers>=4.46.3",
 ]
