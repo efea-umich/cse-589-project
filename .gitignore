@@ -74,3 +74,7 @@ celerybeat-schedule
 *.swo
 
 tmp/
+
+fluent_speech_commands_dataset/
+
+.env
