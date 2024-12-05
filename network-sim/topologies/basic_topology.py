@@ -67,12 +67,12 @@ def update_link_delays(net, mean=meanDelay, stddev=stdDevDelay):
         time.sleep(10)
 
 
-def call_host_function(host, function_name, *args):
-    """Call a function on a specific host."""
-    # Sample Function
-    if function_name == "ping":
-        print(f"{host.name} is pinging {args[0]}")
-        host.cmd(f'ping -c 4 {args[0]}')
+# def call_host_function(host, function_name, *args):
+#     """Call a function on a specific host."""
+#     # Sample Function
+#     if function_name == "ping":
+#         print(f"{host.name} is pinging {args[0]}")
+#         host.cmd(f'ping -c 4 {args[0]}')
     
 
 def main():
@@ -95,8 +95,8 @@ def main():
     h2 = net.get('h2')
 
     # h2.IP() appears in mininet docs but does not seem to work
-    call_host_function(h1, "ping", "10.0.0.2")
-
+    # call_host_function(h1, "ping", "10.0.0.2")
+    h1.cmd("ping 10.0.0.2")
 
 
     # Run network
