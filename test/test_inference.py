@@ -21,6 +21,7 @@ def gpt4o():
                 {"role": "user", "content": prompt}
             ],
             model="gpt-4o",
+            timeout=5
         )
 
         return response.choices[0].message.content
