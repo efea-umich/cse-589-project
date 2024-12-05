@@ -1,4 +1,4 @@
-from auto_vtt.inferencing.action_classifier import ActionClassifier
+from src.auto_vtt.inferencing.action_classifier import ActionClassifier
 
 def test_action_classifier():
     candidate_labels = ['music', 'navigation', 'news']
