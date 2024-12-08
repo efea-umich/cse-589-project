@@ -3,12 +3,15 @@ name = "cse-589-project"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 dependencies = [
+    "fire>=0.7.0",
+    "loguru>=0.7.3",
     "openai>=1.56.2",
-    "openai-whisper>=20240930",
+    "openai-whisper",
     "pydub>=0.25.1",
     "pytest>=8.3.4",
     "python-dotenv>=1.0.1",
     "transformers>=4.46.3",
+    "websockets>=14.1",
 ]

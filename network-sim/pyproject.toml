@@ -3,5 +3,32 @@ name = "network-sim"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.9"
+dependencies = [
+    "aiorwlock>=1.5.0",
+    "arch>=7.2.0",
+    "cse-589-project",
+    "fire>=0.7.0",
+    "jiwer>=3.0.5",
+    "librosa>=0.10.2.post1",
+    "loguru>=0.7.3",
+    "matplotlib>=3.9.3",
+    "mininet>=2.3.0.dev6",
+    "numpy>=2.0.2",
+    "pip>=24.3.1",
+    "pydub>=0.25.1",
+    "ruff>=0.8.2",
+    "scikit-learn>=1.5.2",
+    "seaborn>=0.13.2",
+    "statsmodels>=0.14.4",
+    "torch>=2.5.1",
+]
+
+[tool.uv.sources]
+cse-589-project = { path = "../auto-vtt", editable = true }
+network-sim = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "network-sim",
+]
