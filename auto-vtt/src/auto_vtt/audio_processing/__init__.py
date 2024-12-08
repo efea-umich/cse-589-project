@@ -2,6 +2,8 @@ from pydub import AudioSegment
 import numpy as np
 from pathlib import Path
 
+from loguru import logger
+
 
 class AudioProcessor:
     def process_file(self, audio_file_path) -> AudioSegment:
@@ -19,10 +21,14 @@ x
             original_audio = AudioSegment.from_file(audio_file_path)
         except Exception as e:
             raise ValueError(f"Could not load audio file: {e}")
-
+    
+        return self.process_audio(original_audio)
+        
+        
+    def process_audio(self, audio: AudioSegment) -> AudioSegment:
         # Generate background noise to simulate car interior noise
-        duration_ms = len(original_audio)
-        sample_rate = original_audio.frame_rate  # Use the original audio's sample rate
+        duration_ms = len(audio)
+        sample_rate = audio.frame_rate  # Use the original audio's sample rate
         num_samples = int(duration_ms * sample_rate / 1000.0)
 
         # Generate white noise
@@ -43,7 +49,7 @@ x
         # noise_audio = noise_audio.low_pass_filter(1000)  # Low-pass filter at 1 kHz
 
         # Mix the original audio with the background noise
-        mixed_audio = original_audio.overlay(noise_audio)
+        mixed_audio = audio.overlay(noise_audio)
 
         # Apply a low-pass filter to the mixed audio to simulate the muffled environment
         mixed_audio = mixed_audio.low_pass_filter(8000)  # Low-pass filter at 8 kHz
@@ -59,7 +65,7 @@ x
         mixed_with_car_sounds = {"noise" : mixed_audio}
 
         for noise, file in car_noises.items():
-            new_segment = original_audio.overlay(AudioSegment.from_file(file)).low_pass_filter(5000)
+            new_segment = audio.overlay(AudioSegment.from_file(file)).low_pass_filter(5000)
             mixed_with_car_sounds[noise] = new_segment
 
         # Simulate slight reverb by adding delayed and attenuated copies of the audio

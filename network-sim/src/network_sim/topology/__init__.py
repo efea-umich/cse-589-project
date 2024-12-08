@@ -7,7 +7,7 @@ from mininet.node import Controller, Host
 from mininet.link import TCLink, Link
 from mininet.topo import Topo
 
-from latency_provider import LatencyProvider
+from network_sim.latency_provider import LatencyProvider
 
 import asyncio
 

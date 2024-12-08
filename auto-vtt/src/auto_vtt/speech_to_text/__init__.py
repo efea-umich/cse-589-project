@@ -1,7 +1,13 @@
 import enum
 import os
+import tempfile
+from loguru import logger
+import torch
 import whisper
 import numpy as np
+import librosa
+
+from pydub import AudioSegment
 
 
 class SpeechToTextConverter:
@@ -15,7 +21,7 @@ class SpeechToTextConverter:
     def __init__(self, model_size: ModelSize):
         self.model = whisper.load_model(model_size.value)
 
-    def transcribe(self, audio_path: os.PathLike) -> str:
+    def transcribe_file(self, audio_path: os.PathLike) -> str:
         """
         Transcribes speech from the provided audio file path.
 
@@ -25,10 +31,13 @@ class SpeechToTextConverter:
         Returns:
             str: Transcribed text.
         """
-        result = self.model.transcribe(str(audio_path))
+        fp16_supported = torch.cuda.is_available()
+        
+        result = self.model.transcribe(str(audio_path), fp16=fp16_supported)
         return result['text'].strip()
+    
 
-    def transcribe_array(self, audio_array: np.ndarray, sample_rate: int) -> str:
+    def transcribe(self, audio: AudioSegment) -> str:
         """
         Transcribes speech from a NumPy array representing sound.
 
@@ -39,6 +48,8 @@ class SpeechToTextConverter:
         Returns:
             str: Transcribed text.
         """
-        # Convert the numpy array to the format Whisper expects
-        result = self.model.transcribe(audio_array, sample_rate=sample_rate)
-        return result['text'].strip()
+        # write the audio file to a temporary file
+        audio_path = tempfile.mktemp(suffix='.wav')
+        audio.export(audio_path, format='wav')
+        
+        return self.transcribe_file(audio_path)

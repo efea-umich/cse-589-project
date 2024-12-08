@@ -1,73 +1,172 @@
 import asyncio
-import time
 import websockets
+import json
+import time
+from pathlib import Path
+from subprocess import PIPE
+import statistics
+import fire
 
-BITRATE_PROFILES = [
-    {"bitrate": 64000, "file": "audio_64kbps.bin"},
-    {"bitrate": 128000, "file": "audio_128kbps.bin"},
-    {"bitrate": 256000, "file": "audio_256kbps.bin"}
-]
-
-CHUNK_SIZE = 1024
 
 class VariableRateStreamerClient:
-    def __init__(self, server_uri):
+    def __init__(
+        self,
+        original_file_path: Path,
+        server_uri: str,
+        chunk_size: int = 4096,
+        initial_bitrate: int = 128000,
+        encoding_params: dict = None,
+        adaptation_interval: int = 10  # Only adapt every N chunks
+    ):
+        self.original_file_path = original_file_path
         self.server_uri = server_uri
-        self.current_profile_index = 1
-        self.current_profile = BITRATE_PROFILES[self.current_profile_index]
+        self.chunk_size = chunk_size
+        self.current_bitrate = initial_bitrate
+
         self.rtts = []
         self.throughputs = []
+        self.min_bitrate = 64000
+        self.max_bitrate = 320000
+        self.bitrate_step = 32000
+
+        self.encoding_params = encoding_params or {
+            "audio_codec": "libmp3lame",
+            "b:a": str(self.current_bitrate),
+            "ar": "44100",
+            "ac": "2",
+            "format": "mp3",
+        }
+
+        self.encoder = None
+        self.encoder_queue = asyncio.Queue()
+        self.encoder_task = None
+        self.encoder_lock = asyncio.Lock()  # Prevent simultaneous access
+        self.chunk_count = 0
+        self.adaptation_interval = adaptation_interval
+        self.pending_bitrate_change = False
+
+    async def start_encoder(self):
+        """
+        Start the ffmpeg encoder as a subprocess.
+        """
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(self.original_file_path),
+            "-f",
+            "mp3",
+            "-codec:a",
+            self.encoding_params["audio_codec"],
+            "-b:a",
+            self.encoding_params["b:a"],
+            "-ar",
+            self.encoding_params["ar"],
+            "-ac",
+            self.encoding_params["ac"],
+            "pipe:1",
+        ]
+
+        self.encoder = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        self.encoder_task = asyncio.create_task(self.read_encoder_output())
+
+    async def read_encoder_output(self):
+        """
+        Read chunks from the encoder and put them into the queue.
+        """
+        try:
+            while True:
+                chunk = await self.encoder.stdout.read(self.chunk_size)
+                if not chunk:
+                    break
+                await self.encoder_queue.put(chunk)
+        except asyncio.CancelledError:
+            pass
+
+    async def restart_encoder(self):
+        """
+        Gracefully restart the encoder with updated parameters.
+        """
+        async with self.encoder_lock:
+            # Terminate existing encoder
+            if self.encoder:
+                self.encoder.terminate()
+                await self.encoder.wait()
+                self.encoder_task.cancel()
+                try:
+                    await self.encoder_task
+                except asyncio.CancelledError:
+                    pass
+
+            # Clear any stale chunks in the queue
+            while not self.encoder_queue.empty():
+                self.encoder_queue.get_nowait()
+
+            # Update bitrate and restart
+            self.encoding_params["b:a"] = str(self.current_bitrate)
+            await self.start_encoder()
 
     def update_profile(self, avg_rtt, measured_throughput):
-        current_bitrate = self.current_profile['bitrate']
-        if avg_rtt > 0.5 or measured_throughput < current_bitrate * 1.2:
-            if self.current_profile_index > 0:
-                self.current_profile_index -= 1
-        elif avg_rtt < 0.3 and measured_throughput > current_bitrate * 1.8:
-            if self.current_profile_index < len(BITRATE_PROFILES)-1:
-                self.current_profile_index += 1
-        self.current_profile = BITRATE_PROFILES[self.current_profile_index]
+        """
+        Update the bitrate based on RTT and throughput, but only restart if it actually changed.
+        """
+        old_bitrate = self.current_bitrate
+
+        # Throughput-based adaptation
+        if measured_throughput < self.current_bitrate * 0.8:
+            self.current_bitrate = max(self.min_bitrate, self.current_bitrate - self.bitrate_step)
+        elif measured_throughput > self.current_bitrate * 1.2:
+            self.current_bitrate = min(self.max_bitrate, self.current_bitrate + self.bitrate_step)
+
+        # RTT-based adaptation
+        if avg_rtt > 0.2:
+            self.current_bitrate = max(self.min_bitrate, self.current_bitrate - self.bitrate_step)
+
+        if self.current_bitrate != old_bitrate:
+            # Mark that we need to restart encoder after a short delay
+            self.pending_bitrate_change = True
+
+    async def measure_rtt(self, websocket):
+        """
+        Measure RTT using WebSocket pings.
+        """
+        start = time.perf_counter()
+        pong_waiter = await websocket.ping()
+        await pong_waiter
+        end = time.perf_counter()
+        return end - start
 
     async def stream_file(self, websocket):
-        with open(self.current_profile['file'], 'rb') as f:
-            data = f.read()
-
-        total_sent = 0
-        start_time = time.time()
-        MIN_RTT_SAMPLES = 5
-
-        while total_sent < len(data):
-            chunk = data[total_sent:total_sent+CHUNK_SIZE]
-            send_time = time.time()
-            await websocket.send(chunk)
-
-            ack_line = await websocket.recv()  # Wait for ACK
-            recv_time = time.time()
-            parts = ack_line.split()
-            if len(parts) == 3 and parts[0] == "ACK":
-                rtt = recv_time - send_time
-                self.rtts.append(rtt)
-                chunk_bits = len(chunk)*8
-                throughput = chunk_bits / rtt
-                self.throughputs.append(throughput)
-
-                if len(self.rtts) >= MIN_RTT_SAMPLES:
-                    avg_rtt = sum(self.rtts) / len(self.rtts)
-                    avg_thr = sum(self.throughputs) / len(self.throughputs)
-                    self.update_profile(avg_rtt, avg_thr)
-                    print(f"Adaptation: avg RTT={avg_rtt*1000:.2f}ms, avg_thr={avg_thr/1000:.2f}kbps, profile={self.current_profile['bitrate']} bps")
-
-            total_sent += len(chunk)
-
-        total_time = time.time() - start_time
-        print(f"Finished streaming {len(data)} bytes in {total_time:.2f}s")
+        """
+        Stream MP3-encoded data in byte-sized chunks.
+        """
+        # for now, just send the entire file
+        with open(self.original_file_path, "rb") as f:
+            bytes = f.read()
+        await websocket.send(bytes)
+        await websocket.send(json.dumps({"event": "done"}))
 
     async def run(self):
+        """
+        Run the streaming client.
+        """
+        await self.start_encoder()
         async with websockets.connect(self.server_uri) as websocket:
             print(f"Connected to {self.server_uri}")
             await self.stream_file(websocket)
 
+    def __del__(self):
+        if self.encoder and self.encoder.returncode is None:
+            self.encoder.kill()
+
+
 if __name__ == "__main__":
-    server_uri = "ws://10.0.0.2:9999"  # Replace with your server's address
-    client = VariableRateStreamerClient(server_uri)
-    asyncio.run(client.run())
+    fire.Fire(VariableRateStreamerClient)

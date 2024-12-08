@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: network-sim
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: arch>=7.2.0
+Requires-Dist: cse-589-project
+Requires-Dist: fire>=0.7.0
+Requires-Dist: jiwer>=3.0.5
+Requires-Dist: librosa>=0.10.2.post1
+Requires-Dist: loguru>=0.7.3
+Requires-Dist: matplotlib>=3.9.3
+Requires-Dist: mininet>=2.3.0.dev6
+Requires-Dist: numpy>=2.0.2
+Requires-Dist: pip>=24.3.1
+Requires-Dist: pydub>=0.25.1
+Requires-Dist: ruff>=0.8.2
+Requires-Dist: scikit-learn>=1.5.2
+Requires-Dist: seaborn>=0.13.2
+Requires-Dist: statsmodels>=0.14.4
+Requires-Dist: torch>=2.5.1

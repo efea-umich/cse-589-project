@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from statsmodels.tsa.arima.model import ARIMA
 
-from latency_provider import LatencyProvider
+from . import LatencyProvider
 
 
 def with_prob(prob):

@@ -1,6 +1,6 @@
 import numpy as np
 
-from latency_provider import LatencyProvider
+from . import LatencyProvider
 
 
 class DataLatencyProvider(LatencyProvider):
