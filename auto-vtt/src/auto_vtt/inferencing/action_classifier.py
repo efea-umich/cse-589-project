@@ -1,7 +1,10 @@
 from transformers import pipeline
 import torch
 
-classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli")
+classifier = pipeline(
+    "zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"
+)
+
 
 class ActionClassifier:
     def __init__(self, labels):

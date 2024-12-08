@@ -12,11 +12,11 @@ from pydub import AudioSegment
 
 class SpeechToTextConverter:
     class ModelSize(enum.Enum):
-        TINY = 'tiny'
-        BASE = 'base'
-        SMALL = 'small'
-        MEDIUM = 'medium'
-        LARGE = 'large'
+        TINY = "tiny"
+        BASE = "base"
+        SMALL = "small"
+        MEDIUM = "medium"
+        LARGE = "large"
 
     def __init__(self, model_size: ModelSize):
         self.model = whisper.load_model(model_size.value)
@@ -32,10 +32,9 @@ class SpeechToTextConverter:
             str: Transcribed text.
         """
         fp16_supported = torch.cuda.is_available()
-        
+
         result = self.model.transcribe(str(audio_path), fp16=fp16_supported)
-        return result['text'].strip()
-    
+        return result["text"].strip()
 
     def transcribe(self, audio: AudioSegment) -> str:
         """
@@ -49,7 +48,7 @@ class SpeechToTextConverter:
             str: Transcribed text.
         """
         # write the audio file to a temporary file
-        audio_path = tempfile.mktemp(suffix='.wav')
-        audio.export(audio_path, format='wav')
-        
+        audio_path = tempfile.mktemp(suffix=".wav")
+        audio.export(audio_path, format="wav")
+
         return self.transcribe_file(audio_path)

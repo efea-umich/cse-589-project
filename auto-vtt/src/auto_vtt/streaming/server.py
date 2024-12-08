@@ -1,13 +1,15 @@
 import asyncio
+from loguru import logger
 import websockets
 from pathlib import Path
 import os
 import json
 from datetime import datetime
 import fire
+from asyncio import Event
 
 class VariableRateStreamerServer:
-    def __init__(self, output_dir: Path, host="localhost", port=8765):
+    def __init__(self, output_dir: Path, on_transmission_finished: callable, host="0.0.0.0", port=8765,):
         """
         :param output_dir: Directory where received chunks will be saved.
         :param host: Hostname to bind the server.
@@ -15,17 +17,20 @@ class VariableRateStreamerServer:
         """
         output_dir = Path(output_dir)
         self.output_dir = output_dir
+        self.on_transmission_finished = on_transmission_finished
         self.host = host
         self.port = port
-
-        # Ensure the output directory exists
+        
         os.makedirs(output_dir, exist_ok=True)
+        
+        
+    async def on_done_processing(self, client_websocket):
+        await client_websocket.send("done")
 
     async def handler(self, websocket):
         """
         Handle incoming WebSocket connections.
         """
-
         chunk_idx = 0
         while True:
             try:
@@ -34,9 +39,10 @@ class VariableRateStreamerServer:
 
                 # If the message is a control message, process it
                 if isinstance(message, str):
-                    control_data = json.loads(message)
-                    if control_data.get("event") == "done":
-                        print("Client finished streaming.")
+                    if message == "done":
+                        logger.info("Client finished streaming.")
+                        self.on_transmission_finished()
+                        await self.on_done_processing(websocket)
                         break
                 else:
                     # Save the received chunk
@@ -44,23 +50,23 @@ class VariableRateStreamerServer:
                     with open(chunk_file, "wb") as f:
                         f.write(message)
 
-                    print(f"Received chunk {chunk_idx} ({len(message)} bytes)")
+                    logger.info(f"Received chunk {chunk_idx} ({len(message)} bytes)")
                     chunk_idx += 1
 
             except websockets.ConnectionClosed as e:
-                print(f"Client disconnected: {e}")
+                logger.info(f"Client disconnected: {e}")
                 break
             except Exception as e:
-                print(f"Error: {e}")
+                logger.error(f"Error: {e}")
                 break
 
-        print("Connection closed.")
+        logger.info("Connection closed.")
 
     async def start(self):
         """
         Start the WebSocket server.
         """
-        print(f"Starting server at ws://{self.host}:{self.port}")
+        logger.info(f"Starting server at ws://{self.host}:{self.port}")
         start_server = await websockets.serve(self.handler, self.host, self.port)
         await start_server.serve_forever()
 

@@ -1,4 +1,5 @@
 import asyncio
+from loguru import logger
 import websockets
 import json
 import time
@@ -11,14 +12,12 @@ import fire
 class VariableRateStreamerClient:
     def __init__(
         self,
-        original_file_path: Path,
         server_uri: str,
         chunk_size: int = 4096,
         initial_bitrate: int = 128000,
         encoding_params: dict = None,
-        adaptation_interval: int = 10  # Only adapt every N chunks
+        adaptation_interval: int = 10,  # Only adapt every N chunks
     ):
-        self.original_file_path = original_file_path
         self.server_uri = server_uri
         self.chunk_size = chunk_size
         self.current_bitrate = initial_bitrate
@@ -37,6 +36,7 @@ class VariableRateStreamerClient:
             "format": "mp3",
         }
 
+        self.conn = None
         self.encoder = None
         self.encoder_queue = asyncio.Queue()
         self.encoder_task = None
@@ -44,6 +44,7 @@ class VariableRateStreamerClient:
         self.chunk_count = 0
         self.adaptation_interval = adaptation_interval
         self.pending_bitrate_change = False
+        
 
     async def start_encoder(self):
         """
@@ -77,6 +78,17 @@ class VariableRateStreamerClient:
         )
 
         self.encoder_task = asyncio.create_task(self.read_encoder_output())
+        
+    async def __aenter__(self):
+        # await self.start_encoder()
+        self.conn = await websockets.connect(self.server_uri)
+        logger.info(f"Connected to server at {self.server_uri}")
+        
+        return self
+        
+    async def __aexit__(self, exc_type, exc, tb):
+        if self.conn:
+            await self.conn.close()
 
     async def read_encoder_output(self):
         """
@@ -122,13 +134,19 @@ class VariableRateStreamerClient:
 
         # Throughput-based adaptation
         if measured_throughput < self.current_bitrate * 0.8:
-            self.current_bitrate = max(self.min_bitrate, self.current_bitrate - self.bitrate_step)
+            self.current_bitrate = max(
+                self.min_bitrate, self.current_bitrate - self.bitrate_step
+            )
         elif measured_throughput > self.current_bitrate * 1.2:
-            self.current_bitrate = min(self.max_bitrate, self.current_bitrate + self.bitrate_step)
+            self.current_bitrate = min(
+                self.max_bitrate, self.current_bitrate + self.bitrate_step
+            )
 
         # RTT-based adaptation
         if avg_rtt > 0.2:
-            self.current_bitrate = max(self.min_bitrate, self.current_bitrate - self.bitrate_step)
+            self.current_bitrate = max(
+                self.min_bitrate, self.current_bitrate - self.bitrate_step
+            )
 
         if self.current_bitrate != old_bitrate:
             # Mark that we need to restart encoder after a short delay
@@ -144,24 +162,26 @@ class VariableRateStreamerClient:
         end = time.perf_counter()
         return end - start
 
-    async def stream_file(self, websocket):
+    async def stream_file(self, bytes):
         """
         Stream MP3-encoded data in byte-sized chunks.
         """
         # for now, just send the entire file
-        with open(self.original_file_path, "rb") as f:
-            bytes = f.read()
-        await websocket.send(bytes)
-        await websocket.send(json.dumps({"event": "done"}))
-
-    async def run(self):
-        """
-        Run the streaming client.
-        """
-        await self.start_encoder()
-        async with websockets.connect(self.server_uri) as websocket:
-            print(f"Connected to {self.server_uri}")
-            await self.stream_file(websocket)
+        print(f"Sending {len(bytes)} bytes at {time.time()}")
+        await self.conn.send(bytes)
+        print(f"Sent {len(bytes)} bytes at {time.time()}")
+        await self.conn.send("done")
+        print(f"Sent done message at {time.time()}")
+        
+        # wait for done message from server
+        msg = await self.conn.recv()
+        print(f"Received message from server at {time.time()}: {msg}")
+        logger.info(f"Received message from server: {msg}")
+        if isinstance(msg, str):
+            if msg == "done":
+                logger.info("Server finished processing.")
+            else:
+                logger.error(f"Unexpected message: {msg}")
 
     def __del__(self):
         if self.encoder and self.encoder.returncode is None:

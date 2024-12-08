@@ -2,14 +2,18 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from loguru import logger
 from mininet.net import Mininet
-from mininet.node import Controller, Host
+from mininet.node import OVSController, Host
 from mininet.link import TCLink, Link
 from mininet.topo import Topo
 
 from network_sim.latency_provider import LatencyProvider
 
 import asyncio
+from aiorwlock import RWLock
+
+net_config_lock = RWLock()
 
 
 class CSE589Topo(Topo):
@@ -18,23 +22,28 @@ class CSE589Topo(Topo):
 
         self.latency_provider = latency_provider
 
-        self.car = self.addHost('car')
-        self.server = self.addHost('server')
+        self.car = self.addHost("car")
+        self.server = self.addHost("server")
 
-        self.link = self.addLink(self.car, self.server, cls=TCLink, bw=10, delay='10ms', loss=0)
+        self.link = self.addLink(self.car, self.server, cls=TCLink)
 
+        self.net = Mininet(topo=self, controller=OVSController)
+        self.net.start()
 
-    def adjust_latency(self, latency: str):
-        self.link.intf1.config(delay=latency)
-        self.link.intf2.config(delay=latency)
+        link = self.net.links[0]
+        
+        logger.info(f"Setting latency to {self.latency_provider.get_mean_latency() / 2}ms with jitter {self.latency_provider.get_std_latency() / 2}ms", bw="100m")
+        
+        link.intf1.config(
+            delay=f"{self.latency_provider.get_mean_latency() / 2}ms",
+            jitter=f"{self.latency_provider.get_std_latency() / 2}ms",
+            bw=100
+        )
+        link.intf2.config(
+            delay=f"{self.latency_provider.get_mean_latency() / 2}ms",
+            jitter=f"{self.latency_provider.get_std_latency() / 2}ms",
+            bw=100
+        )
 
-    async def run(self, duration: int, tick_interval: int):
-        net = Mininet(topo=self, controller=Controller)
-        start_time = time.time()
-        net.start()
-
-        while time.time() - start_time < duration:
-            await asyncio.sleep(tick_interval)
-            latency = self.latency_provider.get_next_latency()
-            self.adjust_latency(f"{latency}ms")
-        net.stop()
+    def __del__(self):
+        self.net.stop()

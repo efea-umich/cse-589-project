@@ -54,7 +54,7 @@ for _, row in tqdm(df.head(10).iterrows(), total=10):
     for noise in noises:
         processed_audio = processed_audios[noise]
         processed_audio_path = tmp_dir / f"processed_audio_{noise}.wav"
-        processed_audio.export(processed_audio_path, format='wav')
+        processed_audio.export(processed_audio_path, format="wav")
         # Step 2: Convert audio to text
         predicted_text = speech_to_text_converter.transcribe(processed_audio_path)
 
@@ -80,7 +80,7 @@ y_true_tensor = torch.tensor(y_true_mapped)
 y_pred_tensor = torch.tensor(y_pred_mapped)
 y_pred_auroc = []
 for pred_action, score in y_pred_action:
-    curr_list = [(float(1-score)) / (num_labels - 1)]*num_labels
+    curr_list = [(float(1 - score)) / (num_labels - 1)] * num_labels
     curr_list[action_labels.index(pred_action)] = float(score)
     y_pred_auroc.append(curr_list)
 auroc_pred_tensor = torch.tensor(y_pred_auroc)

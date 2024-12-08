@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 from tqpm import tqdm
-import jiwer # need pip install jiwer
+import jiwer  # need pip install jiwer
 from whisper.normalizers import EnglishTextNormalizer
 
 from src.auto_vtt.audio_processing import AudioProcessor
@@ -17,7 +17,7 @@ df = pd.read_csv(dataset_path)
 num_audios = len(list(df["transcription"]))
 test_segment = df.sample(frac=0.1, random_state=42)
 
-processed = {} # {audio path: true text}
+processed = {}  # {audio path: true text}
 for _, row in tdqm(test_segment.iterrows(), total=len(test_segment)):
     audio_path = row["path"]
     full_audio_path = f"fluent_speech_commands_dataset/{audio_path}"
@@ -31,11 +31,11 @@ for _, row in tdqm(test_segment.iterrows(), total=len(test_segment)):
     processed_audios = audio_processor.process_file(full_audio_path)
     p_audio = processed_audios["turnsignal"]
     processed_audio_path = tmp_dir / f"processed_{audio_path}.wav"
-    processed_audio.export(processed_audio_path, format='wav')
+    processed_audio.export(processed_audio_path, format="wav")
 
     processed[processed_audio_path] = true_transcription
 
-wer_averages = {} # {model size: score}
+wer_averages = {}  # {model size: score}
 for model_size in SpeechToTextConverter.ModelSize:
     speech_to_text_converter = SpeechToTextConverter(model_size.value)
     # transcribe
@@ -51,6 +51,3 @@ for model_size in SpeechToTextConverter.ModelSize:
     wer_averages[model_size] = wer_average
 
 print(wer_averages)
-
-
-

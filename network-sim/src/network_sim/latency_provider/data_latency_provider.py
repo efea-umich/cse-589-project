@@ -5,13 +5,11 @@ from . import LatencyProvider
 
 class DataLatencyProvider(LatencyProvider):
     def __init__(self, data: np.ndarray[float]):
-        self.data = data
-        self.i = 0
+        self.mean = np.mean(data)
+        self.std = np.std(data)
 
-    def get_next_latency(self) -> float:
-        latency = self.data[self.i]
-        self.i += 1
-        return latency
+    def get_mean_latency(self):
+        return self.mean
 
-    def has_next(self) -> bool:
-        return self.i < len(self.data)
+    def get_std_latency(self):
+        return self.std

@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "aiorwlock>=1.5.0",
     "arch>=7.2.0",
     "cse-589-project",
     "fire>=0.7.0",
