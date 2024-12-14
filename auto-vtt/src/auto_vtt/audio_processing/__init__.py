@@ -15,6 +15,13 @@ class AudioProcessor:
             "turnsignal": noise_path / "car_turnsignal.mp3",
         }
         
+        self.car_noise_targets = {
+            "ac": -20,
+            "convo": -5,
+            "radio": -5,
+            "turnsignal": -5,
+        }
+        
         self.car_noises = {}
         
         for noise, file in car_noise_paths.items():
@@ -70,7 +77,15 @@ class AudioProcessor:
         mixed_with_car_sounds = {"noise": mixed_audio}
 
         for noise, noise_audio in self.car_noises.items():
-            new_segment = audio.overlay(noise_audio).low_pass_filter(
+            # normalize noise audio so that it is about 20 dB lower than the original audio
+            original_loudness = audio.dBFS
+            noise_loudness = noise_audio.dBFS
+            
+            target_loudness = original_loudness + self.car_noise_targets[noise]
+            loudness_adjustment = target_loudness - noise_loudness
+            normalized_noise_audio = noise_audio.apply_gain(loudness_adjustment)
+            
+            new_segment = audio.overlay(normalized_noise_audio).low_pass_filter(
                 5000
             )
             mixed_with_car_sounds[noise] = new_segment

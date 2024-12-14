@@ -19,7 +19,7 @@ class SpeechToTextConverter:
         LARGE = "large"
 
     def __init__(self, model_size: ModelSize):
-        self.model = whisper.load_model(model_size.value)
+        self.model = whisper.load_model(model_size.value + ".en")
 
     def transcribe_file(self, audio_path: os.PathLike) -> str:
         """

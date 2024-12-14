@@ -1,3 +1,4 @@
+import subprocess
 import time
 from pathlib import Path
 from typing import List, Dict
@@ -19,6 +20,8 @@ from network_sim.topology import CSE589Topo
 from mininet.net import Mininet
 from mininet.node import Controller
 
+from tqdm import tqdm
+
 import fire
 
 
@@ -27,8 +30,6 @@ class TestRunner:
         self,
         latency_provider: LatencyProvider,
         dataset: VoiceDataset,
-        local_model_size: SpeechToTextConverter.ModelSize,
-        remote_model_size: SpeechToTextConverter.ModelSize,
         output_dir: str,
         input_dir: str,
     ):
@@ -37,27 +38,10 @@ class TestRunner:
 
         self.latency_provider = latency_provider
         self.dataset = dataset
-        self.local_model_size = local_model_size
-        self.remote_model_size = remote_model_size
-        self.stt = SpeechToTextConverter(local_model_size)
         self.audio_processor = AudioProcessor()
 
-        self.obj_classifier, self.act_classifier = self.get_classifiers(dataset)
-        self.topo = CSE589Topo(latency_provider=self.latency_provider)
+        self.topo = CSE589Topo(latency_mean=latency_provider.get_mean_latency(), latency_std=latency_provider.get_std_latency())
 
-    def get_classifiers(self, dataset: VoiceDataset):
-        objects = set()
-        actions = set()
-
-        for _, label in dataset:
-            obj, act = label.split(":")
-            objects.add(obj)
-            actions.add(act)
-
-        obj_classifier = ActionClassifier(objects)
-        act_classifier = ActionClassifier(actions)
-
-        return obj_classifier, act_classifier
 
     async def run_mn_command_in_thread(self, host: str, command: str):
         host = self.topo.net.getNodeByName(host)
@@ -82,14 +66,30 @@ class TestRunner:
         client_runner_path = runner_path / "run_client.py"
 
         server_process = server_node.popen(
-            f"uv run {server_runner_path} --output_dir {self.output_dir}"
+            f"uv run {server_runner_path} --output_dir {self.output_dir}",
+            stdout=subprocess.PIPE,
         )
+        
+        # wait for some output from the server
+        while True:
+            line = server_process.stdout.readline()
+            if not line:
+                break
+            break
+        
+        logger.info("Server is ready")
+        await asyncio.sleep(2)
 
-        for audio_file, label in self.dataset:
+        for i in tqdm(range(100)):
+            audio_file, _ = self.dataset[np.random.randint(len(self.dataset))]
             audio_file.export(self.input_dir / "example.wav", format="wav")
+            new_latency = self.latency_provider.get_mean_latency()
+            new_jitter = self.latency_provider.get_std_latency()
+            self.topo.update_latency(new_latency, new_jitter)
 
+            log_suffix = f"{new_latency}_{new_jitter}_{time.time()}"
             client_process = client_node.popen(
-                f"uv run {client_runner_path} --server-ip {server_ip} --input_dir {self.input_dir}"
+                f"uv run {client_runner_path} --server-ip {server_ip} --input_dir {self.input_dir} --log-suffix {log_suffix}"
             )
             # wait for client to finish
             while client_process.poll() is None:
@@ -98,37 +98,49 @@ class TestRunner:
             client_output, client_err = client_process.communicate()
             if client_err:
                 logger.error(client_err)
-            logger.info(client_output)
+            
+class ManualLatencyProvider(LatencyProvider):
+    def __init__(self, min_latency: float, max_latency: float, min_std_mult: float = 0.5, max_std_mult: float = 1.5):
+        self.min_latency = min_latency
+        self.max_latency = max_latency
+        self.min_std_mult = min_std_mult
+        self.max_std_mult = max_std_mult
+        
+        self.last_latency = self.get_mean_latency()
+        
+    def get_mean_latency(self) -> float:
+        self.last_latency = np.random.uniform(self.min_latency, self.max_latency)
+        return self.last_latency
+
+    def get_std_latency(self) -> float:
+        return self.last_latency * np.random.uniform(self.min_std_mult, self.max_std_mult)
+
 
 class Main:
     async def run_test(
         self,
-        latency_data_path: str,
         dataset_path: str,
-        local_model_size: str,
-        remote_model_size: str,
+        latency_mean: tuple,
+        latency_std: tuple,
         max_len: int = None,
         output_dir: str = "output",
         input_dir: str = "input",
     ):
-        latency_data_path = Path(latency_data_path)
+        output_dir = Path(output_dir)
+        input_dir = Path(input_dir)
         dataset_path = Path(dataset_path)
+        
+        output_dir.mkdir(exist_ok=True)
+        input_dir.mkdir(exist_ok=True)
 
-        latency_provider = DataLatencyProvider(
-            pd.read_csv(latency_data_path)["latency"].values
-        )
+        latency_provider = ManualLatencyProvider(latency_mean[0], latency_mean[1], latency_std[0], latency_std[1])
         dataset = VoiceDataset(
             root_dir=dataset_path, audio_processor=AudioProcessor(), max_len=max_len
         )
 
-        local_model_size = SpeechToTextConverter.ModelSize(local_model_size)
-        remote_model_size = SpeechToTextConverter.ModelSize(remote_model_size)
-
         test_runner = TestRunner(
             latency_provider,
             dataset,
-            local_model_size,
-            remote_model_size,
             output_dir,
             input_dir,
         )
