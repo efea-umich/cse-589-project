@@ -17,10 +17,8 @@ net_config_lock = RWLock()
 
 
 class CSE589Topo(Topo):
-    def __init__(self, latency_provider: LatencyProvider):
+    def __init__(self, latency_mean: Optional[int] = 100, latency_std: Optional[int] = 10):
         Topo.__init__(self)
-
-        self.latency_provider = latency_provider
 
         self.car = self.addHost("car")
         self.server = self.addHost("server")
@@ -32,17 +30,21 @@ class CSE589Topo(Topo):
 
         link = self.net.links[0]
         
-        logger.info(f"Setting latency to {self.latency_provider.get_mean_latency() / 2}ms with jitter {self.latency_provider.get_std_latency() / 2}ms", bw="100m")
+        logger.info(f"Setting latency to {latency_mean / 2}ms with jitter {latency_std / 2}ms", bw="50m")
         
+        self.update_latency(latency_mean, latency_std)
+        
+    def update_latency(self, latency_mean: int, latency_std: int):
+        link = self.net.links[0]
         link.intf1.config(
-            delay=f"{self.latency_provider.get_mean_latency() / 2}ms",
-            jitter=f"{self.latency_provider.get_std_latency() / 2}ms",
-            bw=100
+            delay=f"{latency_mean / 2}ms",
+            jitter=f"{latency_std / 2}ms",
+            bw=50
         )
         link.intf2.config(
-            delay=f"{self.latency_provider.get_mean_latency() / 2}ms",
-            jitter=f"{self.latency_provider.get_std_latency() / 2}ms",
-            bw=100
+            delay=f"{latency_mean / 2}ms",
+            jitter=f"{latency_std / 2}ms",
+            bw=50
         )
 
     def __del__(self):

@@ -14,4 +14,6 @@ src/network_sim/latency_provider/data_latency_provider.py
 src/network_sim/test_runner/__init__.py
 src/network_sim/test_runner/full_tester.py
 src/network_sim/test_runner/model_size_tester.py
+src/network_sim/test_runner/run_client.py
+src/network_sim/test_runner/run_server.py
 src/network_sim/topology/__init__.py

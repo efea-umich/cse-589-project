@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 import sys
 import time
@@ -9,7 +10,7 @@ from auto_vtt.streaming.client import VariableRateStreamerClient
 logger.remove()
 logger.add(sys.stdout)
 
-async def main(server_ip: str, input_dir: str):
+async def main(server_ip: str, input_dir: str, log_suffix: str):
     input_dir = Path(input_dir)
 
     client = VariableRateStreamerClient(
@@ -23,7 +24,11 @@ async def main(server_ip: str, input_dir: str):
         done_time = time.time()
     
     logger.info(f"Time taken: {done_time - start_time:.2f}s")
-
-
+    
+    with open(input_dir / f"transcript_{log_suffix}.txt", "w") as f:
+        csv_writer = csv.writer(f)
+        csv_writer.writerow(["time_taken"])
+        csv_writer.writerow([done_time - start_time])
+        
 if __name__ == "__main__":
     fire.Fire(main)

@@ -4,6 +4,7 @@ Version: 0.1.0
 Summary: Add your description here
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
+Requires-Dist: aiorwlock>=1.5.0
 Requires-Dist: arch>=7.2.0
 Requires-Dist: cse-589-project
 Requires-Dist: fire>=0.7.0

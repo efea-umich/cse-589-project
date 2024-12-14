@@ -30,5 +30,8 @@ network-sim = { workspace = true }
 
 [dependency-groups]
 dev = [
+    "matplotlib>=3.9.3",
     "network-sim",
+    "notebook>=7.3.1",
+    "pandas>=2.2.3",
 ]

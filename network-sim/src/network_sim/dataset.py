@@ -39,7 +39,12 @@ class VoiceDataset(Dataset):
             for type, audio in audios.items():
                 action = row.action
                 object = row.object
-                self.data.append((audio, f"{action}:{object}"))
+                
+                data = {
+                    "label": f"{action}:{object}",
+                    "transcription": row.transcription
+                }
+                self.data.append((audio, data))
 
     def __len__(self):
         return len(self.data)
